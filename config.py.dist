@@ -1,0 +1,63 @@
+import logging
+
+CONFIG = {
+        # global log level
+        'loglevel' : logging.DEBUG,
+
+        # local time zone
+        'timezone' : "Europe/Berlin",
+       
+        # the interval in seconds when to check for a new state
+        'time_check_interval' : 5,
+
+        # the amount of minutes before the sunset where the light is full on
+        'light_on_minutes_before_sunset': 30,
+
+        # light goes out at
+        'sleep_at_hour' : 21,
+        'sleep_at_minute' : 15,
+
+        # dim the lights for X seconds after sleep time
+        'sleep_transition_seconds' : 300,
+
+        # led pwm frequency
+        'pwm_freq' : 100,
+        
+        # pin responsible for led
+        'led_pin' : 32,
+
+        # Parameters for correct calculation of sunset/sunrise
+        'led_astral_country' : 'Germany',
+        'led_astral_city' : 'Berlin',
+        'led_astral_latitude' : 53.5415817,
+        'led_astral_longitude' : 3.1420979,
+        'led_astral_timezone' : 'Europe/Berlin',
+        'led_astral_height' : 140 # in m
+
+        # mqtt configuration
+        'mqtt_host' : '192.168.1.10',
+        'mqtt_user' : 'mqtt',
+        'mqtt_client' : 'chickenpi',
+        'mqtt_password' : 'mqtt',
+        'mqtt_topic' : 'tele/chickencontrol',
+
+        # /sys device of the 1 wire temperature sensor 
+        'temperature_device' : '/sys/bus/w1/devices/28-15a333126461/w1_slave',
+
+	# temperature gets read every X seconds
+        'temperature_interval' : 10,
+
+
+        # Door Configuration
+        'motor_pin_up': 13,
+        'motor_pin_down': 15,
+        'motor_stop_top_pin' : 16,
+        'motor_stop_bottom_pin': 18,
+
+        # amount in minutes waiting after sunset/sleep time + transition time before closing the door 
+        'motor_close_added_time_minutes' : 10,
+
+        # amount of time the motor is running if not stopped by stop switch
+        'motor_safety_stop_after_seconds' : 10
+
+        }
