@@ -81,7 +81,7 @@ def start_motor(lastMotorState,p):
      # if no motor is active, only check all X seconds
      # if the motor is active check every 0.2 seconds for a stop switch signal
      if motor_started_at == 0:
-         time.sleep(1)
+         time.sleep(5)
      else:
          time.sleep(0.2)
 
