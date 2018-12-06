@@ -13,7 +13,7 @@ logging.basicConfig(level=config.CONFIG['loglevel'], format='%(asctime)s - %(lev
 
 def start_led(lastState, p):
   global logger
-  loc = astral.Location(('Bochum', 'Germany', 51.4415817, 7.1420979, 'Europe/Berlin', 140))
+  loc = astral.Location((config.CONFIG['led_astral_city'], config.CONFIG['led_astral_country'], config.CONFIG['led_astral_latitude'], config.CONFIG['led_astral_longitude'], config.CONFIG['led_astral_timezone'], config.CONFIG['led_astral_height']))
   led_pin=config.CONFIG['led_pin']
 
   GPIO.setwarnings(False)
