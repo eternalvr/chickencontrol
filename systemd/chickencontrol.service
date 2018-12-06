@@ -1,0 +1,18 @@
+[Unit]
+Description=Chicken Control
+After=network.target
+
+[Service]
+Type=simple
+#User=chickencontrol
+#Group=chickencontrol
+WorkingDirectory=/opt/chickencontrol
+ExecStart=/opt/chickencontrol/main.py
+SyslogIdentifier=chickencontrol
+StandardOutput=syslog
+StandardError=syslog
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
