@@ -42,7 +42,7 @@ CONFIG = {
         'mqtt_topic' : 'tele/chickencontrol',
 
         # /sys device of the 1 wire temperature sensor 
-        'temperature_device' : '/sys/bus/w1/devices/28-15a333126461/w1_slave',
+        'temperature_device' : { 'device' : '/sys/bus/w1/devices/28-15a333126461/w1_slave'},
 
 	# temperature gets read every X seconds
         'temperature_interval' : 10,
@@ -56,6 +56,9 @@ CONFIG = {
 
         # amount in minutes waiting after sunset/sleep time + transition time before closing the door 
         'motor_close_added_time_minutes' : 10,
+
+	# time in minutes to open the door before sunrise
+	'motor_up_before_sunrise_minutes' : 30,
 
         # amount of time the motor is running if not stopped by stop switch
         'motor_safety_stop_after_seconds' : 10
