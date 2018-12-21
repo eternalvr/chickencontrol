@@ -9,9 +9,9 @@ import config
 import logging
 import mqtt
 logger = logging.getLogger("LED")
-logging.basicConfig(level=config.CONFIG['loglevel'], format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=config.CONFIG['loglevel'])
 
-def start_led(lastState, p):
+def start_led(results, p):
   global logger
   loc = astral.Location((config.CONFIG['led_astral_city'], config.CONFIG['led_astral_country'], config.CONFIG['led_astral_latitude'], config.CONFIG['led_astral_longitude'], config.CONFIG['led_astral_timezone'], config.CONFIG['led_astral_height']))
   led_pin=config.CONFIG['led_pin']
@@ -32,19 +32,19 @@ def start_led(lastState, p):
         t30m=datetime.timedelta(minutes=config.CONFIG['light_on_minutes_before_sunset'])
 
         sun=loc.sun(date=now, local=True)
-        logger.debug( "Sunset: " + str(sun['sunset']))
+        #logger.debug( "Sunset: " + str(sun['sunset']))
   
         beforesunset=sun['sunset'] - t30m
-        logger.debug (str(config.CONFIG['light_on_minutes_before_sunset']) + " min before sunset: " + str(beforesunset))
+        #logger.debug (str(config.CONFIG['light_on_minutes_before_sunset']) + " min before sunset: " + str(beforesunset))
 
         delta_sun = now - beforesunset
-        logger.debug ("Delta: " + str(delta_sun.total_seconds()))
+        #logger.debug ("Delta: " + str(delta_sun.total_seconds()))
  
         dt_sleep = datetime.datetime.now(pytz.timezone(config.CONFIG['timezone'])).replace(hour=config.CONFIG['sleep_at_hour'],minute=config.CONFIG['sleep_at_minute'],second=0)
-        logger.debug ("Sleep Time: " + str(dt_sleep))
+        #logger.debug ("Sleep Time: " + str(dt_sleep))
 
         delta_sleep = now - dt_sleep
-        logger.debug ("Delta Sleep: " + str(delta_sleep.total_seconds()))
+        #logger.debug ("Delta Sleep: " + str(delta_sleep.total_seconds()))
 
 
     # summer mode - sunset is after sleep time - no light necessary
@@ -79,8 +79,10 @@ def start_led(lastState, p):
                 state = 'tr'
 
         pwm.ChangeDutyCycle(dutyCycle)
-        lastState.value = state
-
+        results['lastState'] = state
+        results['sunrise'] = str(sun['sunrise'])
+        results['sunset'] = str(sun['sunset'])
+        results['sleep_time'] = str(dt_sleep)
         time.sleep(config.CONFIG['time_check_interval'])
       except KeyboardInterrupt:
         logger.info("Keyboard Intterupt. Exit.")

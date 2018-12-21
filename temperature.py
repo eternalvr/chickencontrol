@@ -6,26 +6,35 @@ import logging
 logger = logging.getLogger("TEMP")
 logging.basicConfig(level=config.CONFIG['loglevel'] )
 
-def aktuelleTemperatur():
-      
-    # 1-wire Slave Datei 
-    file = open(config.CONFIG['temperature_device'])
-    filecontent = file.read()
-    file.close()
+def aktuelleTemperatur(filename):
+    try:  
+      # 1-wire Slave Datei 
+      file = open(filename)
+      lines = file.readlines()
+      file.close()
  
-    # Temperaturwerte auslesen und konvertieren
-    stringvalue = filecontent.split("\n")[1].split(" ")[9]
-    temperature = float(stringvalue[2:]) / 1000
- 
-    # Temperatur ausgeben
-    rueckgabewert = '%6.2f' % temperature 
-    return(rueckgabewert)
+      if lines[0].strip() [-3:] != 'YES':
+	logger.debug("Error with sensor: " + filename)  
+        return 0
+      temp_line = lines[1].find('t=')
+      if temp_line != -1:
+        temp_output = lines[1].strip() [temp_line+2:]
+        temp_celsius = float(temp_output) / 1000
+      return temp_celsius 
+    except e:
+      logger.debug("Error: " + str(e))
+      return 0
 
-def start_temperature( lastTemperature, p ):
+def start_temperature( results, p ):
     try:
-      logger.info("Starting Temperature reading")
+      logger.info("Starting Temperature Process")
       while 1:
-        lastTemperature.value = float(aktuelleTemperatur())
+
+        for name in config.CONFIG['temperature_devices']:
+           filename = config.CONFIG['temperature_devices'][name]
+           res = aktuelleTemperatur(filename)
+           results[name] = str(res)#float(aktuelleTemperatur(filename))
+
         time.sleep(config.CONFIG['temperature_interval'])
     except KeyboardInterrupt:
         exit()

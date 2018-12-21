@@ -7,6 +7,7 @@ import astral
 import pytz
 import config
 import logging 
+import mqtt
 
 timezone="Europe/Berlin"
 
@@ -14,8 +15,7 @@ sleep_transition_seconds=30
 
 pwm_freq=100
 
-
-loc = astral.Location(('Bochum', 'Germany', 51.4415817, 7.1420979, 'Europe/Berlin', 140))
+loc = astral.Location((config.CONFIG['led_astral_city'], config.CONFIG['led_astral_country'], config.CONFIG['led_astral_latitude'], config.CONFIG['led_astral_longitude'], config.CONFIG['led_astral_timezone'], config.CONFIG['led_astral_height']))
 state = 'unknown'
 logger = logging.getLogger("MOTOR")
 logging.basicConfig(level=config.CONFIG['loglevel'] )
@@ -24,6 +24,8 @@ top_pin = config.CONFIG['motor_stop_top_pin']
 bottom_pin = config.CONFIG['motor_stop_bottom_pin']
 pin_up = config.CONFIG['motor_pin_up']
 pin_down = config.CONFIG['motor_pin_down']
+motor_manual_up_pin = config.CONFIG['motor_manual_up_pin']
+motor_manual_down_pin = config.CONFIG['motor_manual_down_pin']
 
 motor_max_time = config.CONFIG['motor_safety_stop_after_seconds']
 motor_started_at = 0
@@ -32,11 +34,15 @@ motor_started_at = 0
 simulate_now = 0 
 simulated_now = pytz.timezone(config.CONFIG['timezone']).localize(datetime.datetime.now()).replace(hour=0,minute=0)
 
+motor_up_delta=datetime.timedelta(minutes=config.CONFIG['motor_up_before_sunrise_minutes'])
 
-
-def start_motor(lastMotorState,p):
+def start_motor(results,p):
   global state
   global simulated_now
+  global motor_started_at
+  global client
+
+  logger.info("Starting Motor Process..")
 
   GPIO.setwarnings(False)
 
@@ -44,27 +50,41 @@ def start_motor(lastMotorState,p):
   
   GPIO.setup(top_pin, GPIO.IN)
   GPIO.setup(bottom_pin, GPIO.IN)
+  GPIO.setup(motor_manual_up_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+  GPIO.setup(motor_manual_down_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
 
   GPIO.setup(pin_up, GPIO.OUT)
   GPIO.setup(pin_down, GPIO.OUT)
+
+
 
   GPIO.output(pin_up, 0)
   GPIO.output(pin_down, 0)
   reset_motor()
 
-  state = get_state_from_switches()
-  #state = 'day'
-  logger.info("Initial Doorstate: " + state)
 
+  logger.info("Subscribing to mqtt")
+
+  state = get_state_from_switches()
+  state = 'up'
+
+  motor_started_at = get_now()
+
+  logger.info("Initial Doorstate: " + state)
   while 1:
-     lastMotorState.value = state
+     results['lastMotorState'] = state
+
+     check_manual_buttons()
+     logger.debug("State after check: " + state)
+
      if state == 'night': 
          check_night()
          if motor_started_at == 0:
             simulated_now = simulated_now + datetime.timedelta(hours=1)
 
      if state == 'day':
-         check_day()
+         check_day(results)
          if motor_started_at == 0:
             simulated_now = simulated_now + datetime.timedelta(hours=1)
 
@@ -77,17 +97,38 @@ def start_motor(lastMotorState,p):
      if state == 'error':
          logger.error( "Motor in error state. Exit." )
          exit()
+     
+     logger.debug("State after everything: " + state)
 
      # if no motor is active, only check all X seconds
      # if the motor is active check every 0.2 seconds for a stop switch signal
      if motor_started_at == 0:
-         time.sleep(5)
+         time.sleep(1)
      else:
-         time.sleep(0.2)
+         time.sleep(0.1)
 
   GPIO.cleanup()
+def check_manual_buttons():
+    global state
+    btn_up_state = GPIO.input(motor_manual_up_pin)
+    btn_down_state = GPIO.input(motor_manual_down_pin)
 
-def check_day():
+    logger.debug("ButonState: " + str(btn_up_state) + " / " + str(btn_down_state))
+
+    if int(btn_up_state) == 0:
+        motor_started_at = get_now()
+        state = 'up'
+        return
+
+    if int(btn_down_state) == 0:
+        motor_started_at = get_now()
+        state = 'down'
+        return
+
+def on_message(client, userdata, message):
+  print("Received message '" + str(message.payload) + "' on topic '" + message.topic + "' with QoS " + str(message.qos))
+
+def check_day(results):
    global state
    global motor_started_at
    motor_started_at = 0
@@ -100,7 +141,6 @@ def check_day():
    logger.debug("Now   : " + str(now)) 
    logger.debug("Sunset: " + str(sunset_time))
    logger.debug("Sleep : " + str(sleep_time))
-
    # close time is sunset or sleep time - whatever is later
    if (sunset_time - sleep_time).total_seconds() > 0:
        close_time = sunset_time + datetime.timedelta(seconds=config.CONFIG['sleep_transition_seconds'], minutes=config.CONFIG['motor_close_added_time_minutes'])
@@ -109,6 +149,7 @@ def check_day():
 
 
    logger.debug("Close Time is " + str(close_time))
+   results['close_time'] = str(close_time)
 
    if now > close_time:
        logger.debug("Sleeping Time!")
@@ -127,10 +168,14 @@ def check_night():
     sunrise_time = sun['sunrise'].replace(second=0,microsecond=0)
     sunset_time = sun['sunset'].replace(second=0,microsecond=0)
 
+    open_time = sunrise_time - motor_up_delta
+
     logger.debug("Now          : " + str(now))
     logger.debug("Sunrise is at: " + str(sunrise_time))
+    logger.debug("Open Time at:  " + str(open_time))
+    logger.debug("Now-open_time: " + str((now-sunset_time).total_seconds()))
 
-    if now > sunrise_time and (now - sunset_time).total_seconds() < 0:
+    if now > open_time and (now - sunset_time).total_seconds() < 0:
         logger.debug("Door Open")
         state = 'up'
         motor_started_at = now
@@ -141,11 +186,10 @@ def motor_up():
     GPIO.output(pin_up, 1)
     GPIO.output(pin_down, 0)
 
-    if(GPIO.input(top_pin) == 1):
+    if(GPIO.input(top_pin) == 0):
         state = 'day'
         logger.debug("Top Stop received")
         reset_motor()
-    
     if (get_now() - motor_started_at).total_seconds() > motor_max_time:
         state = 'error'
         logger.error("No Stop Switch signal received in time")
@@ -156,13 +200,15 @@ def motor_down():
     GPIO.output(pin_down, 1)
     GPIO.output(pin_up, 0)
 
-    if GPIO.input(bottom_pin) == 1:
+    if GPIO.input(bottom_pin) == 0:
         state = 'night'
         logger.debug("Bottom Stop Received")
         reset_motor()
-    
+    if motor_started_at == 0: 
+        return
+
     if (get_now() - motor_started_at).total_seconds() > motor_max_time:
-        state = 'error'
+        state = 'night'
         logger.error("No Stop Switch signal received in time")
         reset_motor()
 

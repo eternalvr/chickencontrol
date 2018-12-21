@@ -23,8 +23,11 @@ def start():
     global logger, client, lastState, lastTemperature, lastMotorState, active_modules
     try:
         logger = logging.getLogger()
-        logging.basicConfig(level=config.CONFIG['loglevel'], format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(level=config.CONFIG['loglevel'])
         client = mqtt.initialize_mqtt()
+
+        results = multiprocessing.Manager().dict()
+
 
         lastState = multiprocessing.Value(ctypes.c_char_p, b"undefined")
         lastTemperature = multiprocessing.Value(ctypes.c_float, 0)
@@ -32,17 +35,17 @@ def start():
 
         # start led process
 
-        active_modules = { 'led' : { 'target' : led.start_led, 'args' : lastState },
-                            'temp' : { 'target' : temperature.start_temperature, 'args' : lastTemperature },
-                            'motor' : { 'target' : motor.start_motor, 'args' : lastMotorState }
+        active_modules = { 'led' : { 'target' : led.start_led, 'args' : results },
+                            'temp' : { 'target' : temperature.start_temperature, 'args' : results },
+                            'motor' : { 'target' : motor.start_motor, 'args' : results }
                             }
 
         check_processes_alive()
 
         while 1:
             check_processes_alive()
-            publish(logger, client, lastState, lastTemperature, lastMotorState)
-            time.sleep(5)
+            publish(logger, client, results)
+            time.sleep(10)
 
     except KeyboardInterrupt:
        logger.info("Exiting.")
@@ -63,10 +66,13 @@ def create_new_process(ptype, target, args):
     t.start()
     return t
 
-def publish(logger, client, lastState, lastTemperature, lastMotorState):
+def publish(logger, client, results):
+    #values = { 'lightState' : lastState.value, 'temperature' : lastTemperature.value, 'motorState' : lastMotorState.value, 'lastMessage' : str(pytz.timezone(config.CONFIG['timezone']).localize(datetime.datetime.now()))}
+    results['lastMessage'] = str(pytz.timezone(config.CONFIG['timezone']).localize(datetime.datetime.now()))
+    
+    logger.debug(str(results))
 
-    logger.debug("Publishing LastState " + lastState.value + " lastTemp: " + str(lastTemperature.value))
-    client.publish(config.CONFIG['mqtt_topic'] + "/SENSOR", json.dumps({ 'lightState' : lastState.value, 'temperature' : lastTemperature.value, 'motorState' : lastMotorState.value, 'lastMessage' : str(pytz.timezone(config.CONFIG['timezone']).localize(datetime.datetime.now()))}))
+    client.publish(config.CONFIG['mqtt_topic'] + "/SENSOR", json.dumps(results._getvalue()))
     
 if __name__ == '__main__':
     start()

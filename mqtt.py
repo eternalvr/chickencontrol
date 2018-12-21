@@ -9,8 +9,9 @@ def on_connect(client, userdata, flags, rc):
     logger.info("Connected to MQTT: " + str(rc) + str(userdata))
     
 
-def initialize_mqtt():
-  client = mqtt.Client(config.CONFIG['mqtt_client'])
+def initialize_mqtt(name=""):
+  global client
+  client = mqtt.Client(config.CONFIG['mqtt_client'] + name)
   client.enable_logger()
   client.on_connect = on_connect
   client.username_pw_set(config.CONFIG['mqtt_user'], config.CONFIG['mqtt_password'])
@@ -21,4 +22,5 @@ def initialize_mqtt():
   client.loop_start()
 
   return client
-    
+def get_client():
+    return client
